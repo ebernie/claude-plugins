@@ -1,0 +1,11 @@
+{
+  "name": "ebernie-tools",
+  "owner": { "name": "ebernie" },
+  "plugins": [
+    {
+      "name": "eng-gates",
+      "source": "./plugins/eng-gates",
+      "description": "Gated delivery pipeline: /ship runs plan → implement → audited tests → review → user-level verification → draft PR"
+    }
+  ]
+}
