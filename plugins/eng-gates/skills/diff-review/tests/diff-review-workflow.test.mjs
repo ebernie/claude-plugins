@@ -22,7 +22,7 @@ async function runScript(args, agentImpl) {
 function makeAgent() {
   const calls = []
   const agent = async (prompt, opts = {}) => {
-    calls.push(opts)
+    calls.push({ ...opts, prompt })
     if (opts.phase === 'Find') {
       const dim = opts.label.split(':')[1].split(' ')[0]
       return {
@@ -60,3 +60,28 @@ for (const [effort, expected] of Object.entries(EXPECTED)) {
     }
   })
 }
+
+// /eng-gates:ship hands its standards file to diff-review as guidanceFiles; the
+// convention finder is only useful if that list reaches its prompt.
+const finderCalls = agent => agent.calls.filter(o => o.phase === 'Find')
+
+test('guidanceFiles reach every finder prompt, including the convention finder', async () => {
+  const guidanceFiles = ['/x/standards.md', '/x/CLAUDE.md']
+  const agent = makeAgent()
+  await runScript({ range: 'main..HEAD', repoRoot: '/repo', effort: 'standard', guidanceFiles }, agent)
+  const finders = finderCalls(agent)
+  assert.ok(finders.some(o => o.label === 'find:convention'), 'convention finder ran')
+  for (const opts of finders) {
+    for (const path of guidanceFiles) assert.ok(opts.prompt.includes(path), `${opts.label} is missing ${path}`)
+  }
+})
+
+test('without guidanceFiles no finder prompt advertises guidance files', async () => {
+  const agent = makeAgent()
+  await runScript({ range: 'main..HEAD', repoRoot: '/repo', effort: 'standard' }, agent)
+  const finders = finderCalls(agent)
+  assert.equal(finders.length, EXPECTED.standard.finders)
+  for (const opts of finders) {
+    assert.ok(!opts.prompt.includes('Project guidance files'), `${opts.label} mentions guidance files`)
+  }
+})

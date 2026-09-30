@@ -26,10 +26,15 @@ const ARGS = {
   planPath: '/repo/.claude/ship/plan.md',
   repoRoot: '/repo',
   testCommand: 'node --test',
+  standardsPath: '/plugin/skills/ship/references/standards.md',
 }
 
 const CRITICAL = { severity: 'Critical', file: 'test/x.test.mjs', summary: 'passes regardless of code' }
 const MEDIUM = { severity: 'Medium', file: 'lib/x.js', summary: 'minor naming' }
+
+// One scenario that exercises every agent kind: implement, audit + fix,
+// failing run + fix, review + fix, and the post-fix recheck.
+const allAgentKinds = () => makeAgent({ audits: [[CRITICAL], []], testRuns: [false, true], reviews: [[CRITICAL], []] })
 
 // Scenario stub: sequences of results per gate; the last entry repeats forever.
 // Calls are dispatched on opts.phase + presence of opts.schema (checker vs fixer).
@@ -60,9 +65,18 @@ function makeAgent({ audits = [[]], testRuns = [true], reviews = [[]], nullAt } 
   return agent
 }
 
-test('rejects when required args are missing', async () => {
-  await assert.rejects(runScript({ requirement: 'x' }, makeAgent()), /requires args/)
-})
+const REQUIRED_KEYS = ['requirement', 'planPath', 'repoRoot', 'testCommand', 'standardsPath']
+
+for (const key of REQUIRED_KEYS) {
+  for (const [how, args] of [
+    ['omitted', Object.fromEntries(Object.entries(ARGS).filter(([k]) => k !== key))],
+    ['empty', { ...ARGS, [key]: '' }],
+  ]) {
+    test(`rejects args when ${key} is ${how}`, async () => {
+      await assert.rejects(runScript(args, makeAgent()), new RegExp(`requires args:.*${key}`))
+    })
+  }
+}
 
 test('accepts args delivered as a JSON string (observed harness behavior)', async () => {
   const result = await runScript(JSON.stringify(ARGS), makeAgent())
@@ -99,9 +113,7 @@ test('happy path: one round per gate, ok:true', async () => {
 })
 
 test('every agent runs on sonnet: suite runs at medium effort, all other work at high', async () => {
-  // One scenario that exercises every agent kind: implement, audit + fix,
-  // failing run + fix, review + fix, and the post-fix recheck.
-  const agent = makeAgent({ audits: [[CRITICAL], []], testRuns: [false, true], reviews: [[CRITICAL], []] })
+  const agent = allAgentKinds()
   const result = await runScript(ARGS, agent)
   assert.equal(result.ok, true)
   assert.deepEqual(agent.calls.map(c => c.opts.label), [
@@ -113,7 +125,28 @@ test('every agent runs on sonnet: suite runs at medium effort, all other work at
     const expectedEffort = suiteRuns.some(c => c.opts === opts) ? 'medium' : 'high'
     assert.deepEqual({ model: opts.model, effort: opts.effort }, { model: 'sonnet', effort: expectedEffort }, opts.label)
   }
-  assert.ok(agent.calls.some(c => c.opts.agentType === 'test-quality-auditor'), 'audit must use the test-quality-auditor agent')
+})
+
+test('only the audit checks run as the plugin-namespaced test-quality-auditor', async () => {
+  const agent = allAgentKinds()
+  await runScript(ARGS, agent)
+  const auditChecks = agent.checks('Audit tests')
+  assert.equal(auditChecks.length, 2)
+  for (const { opts } of agent.calls) {
+    const expected = auditChecks.some(c => c.opts === opts) ? 'eng-gates:test-quality-auditor' : undefined
+    assert.equal(opts.agentType, expected, opts.label)
+  }
+})
+
+test('every agent that writes or judges code is pointed at the standards file; suite runners are not', async () => {
+  const agent = allAgentKinds()
+  await runScript(ARGS, agent)
+  const suiteRunLabels = agent.checks('Run tests').map(c => c.opts.label)
+  assert.deepEqual(suiteRunLabels, ['test run 1', 'test run 2', 'test recheck 1'])
+  for (const { prompt, opts } of agent.calls) {
+    const mentionsStandards = prompt.includes(ARGS.standardsPath)
+    assert.equal(mentionsStandards, !suiteRunLabels.includes(opts.label), opts.label)
+  }
 })
 
 test('gate ordering: implement -> audit -> run -> review, strictly', async () => {

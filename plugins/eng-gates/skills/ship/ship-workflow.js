@@ -18,14 +18,14 @@ if (typeof args === 'string') {
     throw new Error(`ship-build-loop received unparseable string args: ${e.message}`)
   }
 }
-const { requirement, planPath, repoRoot, testCommand } = parsedArgs ?? {}
+const { requirement, planPath, repoRoot, testCommand, standardsPath } = parsedArgs ?? {}
 // The 3-round contract is a hard ceiling: anything other than an integer 1–3
 // (including 0, negatives, and non-numbers) falls back to the default of 3.
 const requestedRounds = parsedArgs && parsedArgs.maxReviewRounds
 const maxReviewRounds =
   Number.isInteger(requestedRounds) && requestedRounds >= 1 && requestedRounds <= 3 ? requestedRounds : 3
-if (!requirement || !planPath || !repoRoot || !testCommand) {
-  throw new Error('ship-build-loop requires args: requirement, planPath, repoRoot, testCommand')
+if (!requirement || !planPath || !repoRoot || !testCommand || !standardsPath) {
+  throw new Error('ship-build-loop requires args: requirement, planPath, repoRoot, testCommand, standardsPath')
 }
 
 // Audit and test-run loops share the same bound as review: N checks, N-1 fix attempts.
@@ -66,6 +66,10 @@ const TEST_SCHEMA = {
   },
 }
 
+// Agents have no other source for the coding principles and testing rules, so
+// every agent that writes or judges code is handed this file.
+const readStandards = `Before anything else, read the engineering standards at ${standardsPath} and follow them.`
+
 const severe = r => r.findings.filter(f => f.severity === 'Critical' || f.severity === 'High')
 
 // The requirement is end-user input relayed into prompts — fence it so agents
@@ -84,7 +88,8 @@ phase('Implement')
 const implementSummary = await agent(
   `Work in the repository at ${repoRoot} (all paths relative to it).
 ${fencedRequirement}
-Read the approved plan at ${planPath} and implement it exactly — smallest unit of value, no unrelated changes, follow the repo's existing conventions and the coding principles in your context.
+Read the approved plan at ${planPath} and implement it exactly — smallest unit of value, no unrelated changes, follow the repo's existing conventions.
+${readStandards}
 Write automated tests for the change: golden path, edge cases, error paths. Assert behavior, not implementation. Never mock the system under test's own internals; integration tests use the real database.
 IMPORTANT: do NOT run the test suite or any individual test — the tests must be audited before their first run. Lint/type-check is allowed.
 Return: files changed, test files added or modified, and any assumptions made.`,
@@ -100,9 +105,10 @@ for (;;) {
   audit = await agent(
     `You are auditing test quality in the repository at ${repoRoot}. The implementer reports:
 ${implementSummary}
+${readStandards} Judge the tests against its Testing Rules.
 Audit ONLY the new/modified tests. Look for: tests that would pass regardless of the implementation, mocking of the system under test's own internals, integration tests that mock the database, assertion-free "documentation" tests, duplicate tests under different names, and assertions on implementation details instead of behavior.
 Categorize every finding as Critical, High, Medium, or Low. An empty findings array means the tests are sound. Do NOT run the tests.`,
-    { agentType: 'test-quality-auditor', ...SONNET_HIGH, schema: FINDINGS_SCHEMA, label: `audit ${auditRounds}`, phase: 'Audit tests' }
+    { agentType: 'eng-gates:test-quality-auditor', ...SONNET_HIGH, schema: FINDINGS_SCHEMA, label: `audit ${auditRounds}`, phase: 'Audit tests' }
   )
   if (audit === null) throw new Error('test audit agent failed')
   const bad = severe(audit)
@@ -112,7 +118,8 @@ Categorize every finding as Critical, High, Medium, or Low. An empty findings ar
   }
   log(`Test audit round ${auditRounds}: ${bad.length} Critical/High — dispatching fixes`)
   warnIfDead(await agent(
-    `Work in the repository at ${repoRoot}. Fix these Critical/High test-quality findings without weakening coverage — strengthen or replace the tests, never delete assertions to silence a finding. Do NOT run the test suite (audit gate not yet cleared).
+    `Work in the repository at ${repoRoot}. ${readStandards}
+Fix these Critical/High test-quality findings without weakening coverage — strengthen or replace the tests, never delete assertions to silence a finding. Do NOT run the test suite (audit gate not yet cleared).
 Findings: ${JSON.stringify(bad)}`,
     { ...SONNET_HIGH, label: `fix audit ${auditRounds}`, phase: 'Audit tests' }
   ), `fix audit ${auditRounds}`)
@@ -136,7 +143,8 @@ Report whether the whole suite passed, with a short summary including the tail o
   }
   log(`Test run ${testRuns} failed — dispatching fix`)
   warnIfDead(await agent(
-    `Work in the repository at ${repoRoot}. The test suite (${testCommand}) failed:
+    `Work in the repository at ${repoRoot}. ${readStandards}
+The test suite (${testCommand}) failed:
 ${testResult.summary}
 Diagnose and fix the implementation. Only change a test if it is genuinely wrong against the plan at ${planPath} — say why. Never delete, skip, or weaken tests to make the suite pass. Keep the change minimal.`,
     { ...SONNET_HIGH, label: `fix tests ${testRuns}`, phase: 'Run tests' }
@@ -153,6 +161,7 @@ for (;;) {
     `You are a strict code reviewer. In the repository at ${repoRoot}, review the working diff for this change (use git diff and git status to find modified and untracked files, then read them):
 ${fencedRequirement}
 Plan: ${planPath}
+${readStandards} Judge the diff against its Coding Principles and Testing Rules.
 Look for bugs, logic errors, security issues, unhandled edge cases, deviations from the plan/spec, and violations of the repo's conventions. Report only real issues — no style nits consistent with the existing codebase. Categorize every finding as Critical, High, Medium, or Low. An empty findings array means the diff is clean.`,
     { ...SONNET_HIGH, schema: FINDINGS_SCHEMA, label: `review ${reviewRounds}`, phase: 'Review' }
   )
@@ -164,7 +173,8 @@ Look for bugs, logic errors, security issues, unhandled edge cases, deviations f
   }
   log(`Review round ${reviewRounds}: ${bad.length} Critical/High — dispatching fixes`)
   warnIfDead(await agent(
-    `Work in the repository at ${repoRoot}. Fix these Critical/High review findings; keep changes minimal and consistent with the plan at ${planPath}. If a fix requires touching test files, only strengthen them — never weaken, skip, or delete assertions. After fixing, run ${testCommand} and make sure it still passes (the tests are already audited — running them is allowed now).
+    `Work in the repository at ${repoRoot}. ${readStandards}
+Fix these Critical/High review findings; keep changes minimal and consistent with the plan at ${planPath}. If a fix requires touching test files, only strengthen them — never weaken, skip, or delete assertions. After fixing, run ${testCommand} and make sure it still passes (the tests are already audited — running them is allowed now).
 Findings: ${JSON.stringify(bad)}`,
     { ...SONNET_HIGH, label: `fix review ${reviewRounds}`, phase: 'Review' }
   ), `fix review ${reviewRounds}`)

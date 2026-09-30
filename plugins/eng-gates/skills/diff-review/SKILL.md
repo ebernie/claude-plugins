@@ -1,6 +1,6 @@
 ---
 name: diff-review
-description: Local adversarial code review of the working diff — parallel dimension finders, refutation verifiers, findings ranked and reported via ReportFindings. Runs entirely on this machine; nothing is uploaded and nothing is separately billed. Satisfies Step 8 of the mandatory workflow. Usage - /diff-review [light|quick|standard|deep] [<git range or path>]
+description: Local adversarial code review of the working diff — parallel dimension finders, refutation verifiers, findings ranked and reported via ReportFindings. Runs entirely on this machine; nothing is uploaded and nothing is separately billed. The code-review gate used by /eng-gates:ship. Usage - /eng-gates:diff-review [light|quick|standard|deep] [--guidance <file>]... [<git range or path>]
 ---
 
 # /diff-review — local, adversarial, working-diff review
@@ -11,9 +11,19 @@ the local derivative: same find → verify → rank → report shape, run by
 sub-agents on this machine, so an agent may run it freely. Never report that
 `/code-review` ran — this gate is satisfied by a `/diff-review` run.
 
+## Gate contract
+
+- **PASS** = a completed run with no unresolved Critical/High findings.
+- Real Critical/High → fix, then re-review. Callers cap total runs; /ship
+  caps at 3.
+- False positives are dismissed with a one-line justification each.
+- "Unavailable" only after an invocation was attempted and errored — never
+  assumed.
+
 ## Arguments
 
-`/diff-review [effort] [scope]` — both optional, any order.
+`/diff-review [effort] [--guidance <file>]... [scope]` — all optional, any
+order.
 
 - **effort**: `light` | `quick` | `standard` | `deep`. Default: **auto** — pick
   the tier in Phase 1 step 5 from the diffstat; never silently default to
@@ -21,6 +31,9 @@ sub-agents on this machine, so an agent may run it freely. Never report that
 - **scope**: a git range (`master..HEAD`), `--staged`, or a path. Default:
   everything uncommitted plus everything on this branch not on the default
   branch.
+- **--guidance <file>**: repeatable. Extra rule files (e.g. a standards
+  document) reviewed against exactly like `CLAUDE.md`. Resolve each to an
+  absolute path; a missing file → stop and say so.
 
 ## Phase 1 — Resolve scope (main loop, before anything else)
 
@@ -51,8 +64,9 @@ sub-agents on this machine, so an agent may run it freely. Never report that
    - `standard` — everything else.
 
    State the chosen tier and the rule that picked it before launching.
-6. Note the repo's root `CLAUDE.md` and any `CLAUDE.md` in a touched
-   directory. Their rules are review criteria.
+6. Note the repo's root `CLAUDE.md`, any `CLAUDE.md` in a touched directory,
+   and every `--guidance` file. Together they are the guidance set; their
+   rules are review criteria.
 
 ## Light tier — one reviewer, no workflow
 
@@ -86,7 +100,7 @@ Workflow tool with:
   directory (expand `~` yourself — the tool will not)
 - `args`: `{ "range": "<resolved range>", "includeDirty": true|false,
   "effort": "quick|standard|deep", "repoRoot": "<abs path>",
-  "guidanceFiles": ["<abs CLAUDE.md paths>"], "scopeNote": "<one line>" }`
+  "guidanceFiles": ["<abs paths of the guidance set>"], "scopeNote": "<one line>" }`
   - optional `"dims"`: dimension keys to run instead of the tier's default set
   - optional `"priorFindings"`: one-line summaries of findings just fixed —
     switches finders into fix-verification mode (see re-review below)
@@ -144,9 +158,9 @@ The script owns the exact prompts; this is each finder's remit.
 2. **Contracts & security** — external input validated at the boundary, authz
    and tenancy checks, injection, secrets or PII in logs/responses, least
    privilege, API/schema contract drift.
-3. **Convention adherence** — the repo's own `CLAUDE.md` rules, verified
-   against the file rather than assumed. Only flag a rule the file states;
-   quote it.
+3. **Convention adherence** — the rules in the guidance set (`CLAUDE.md`
+   files and `--guidance` files), verified against the file rather than
+   assumed. Only flag a rule a guidance file states; quote it.
 4. **Test quality** — does a new behavior have a test that would fail without
    the change; forbidden patterns (duplicate tests renamed, assertion-free
    tests, mocking the system under test, mocked DB in an integration test).

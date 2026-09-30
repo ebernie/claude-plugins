@@ -1,11 +1,16 @@
 {
   "name": "ebernie-tools",
-  "owner": { "name": "ebernie" },
+  "owner": {
+    "name": "ebernie"
+  },
+  "metadata": {
+    "description": "Engineering-gate skills for Claude Code"
+  },
   "plugins": [
     {
       "name": "eng-gates",
       "source": "./plugins/eng-gates",
-      "description": "Gated delivery pipeline: /ship runs plan → implement → audited tests → review → user-level verification → draft PR"
+      "description": "Gated delivery pipeline: /ship runs plan \u2192 implement \u2192 audited tests \u2192 review \u2192 user-level verification \u2192 draft PR"
     }
   ]
 }
