@@ -1,6 +1,6 @@
-# claude-eng-kit
+# claude-plugins
 
-A Claude Code plugin marketplace (`ebernie-tools`) with one plugin,
+A Claude Code plugin marketplace (`ebernie`) with one plugin,
 **eng-gates**: a gated delivery pipeline that takes one requirement from plan
 to a draft PR, refusing to open the PR unless every gate passes.
 
@@ -17,8 +17,8 @@ Coding and testing standards the pipeline enforces:
 ## Install
 
 ```
-/plugin marketplace add <github-user>/claude-eng-kit
-/plugin install eng-gates@ebernie-tools
+/plugin marketplace add ebernie/claude-plugins
+/plugin install eng-gates@ebernie
 ```
 
 ## First run in each repo

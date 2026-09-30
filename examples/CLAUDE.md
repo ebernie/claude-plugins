@@ -40,4 +40,4 @@ in the eng-gates skills; this file is policy.
 
 To apply the same coding and testing rules to work /ship does not cover,
 paste in `plugins/eng-gates/skills/ship/references/standards.md` from the
-claude-eng-kit repo.
+claude-plugins repo (github.com/ebernie/claude-plugins).
