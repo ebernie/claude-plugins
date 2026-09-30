@@ -72,8 +72,7 @@ Any gate failing here fails that gate.
      without it.
    - Branch: in a background session with worktree isolation, use the branch
      already checked out. Otherwise create or switch to `ship/<short-slug>`
-     now, before any code changes — /verify builds evidence links from the
-     checked-out branch. Never work on main/master.
+     now, before any code changes. Never work on main/master.
 1. Restate the requirement in one paragraph. If it is ambiguous in a way that
    changes what gets built, ask the user — in a background session this parks
    the session as "needs input", which is correct. Otherwise state your
@@ -85,6 +84,10 @@ Any gate failing here fails that gate.
    add `.claude/ship/` to `.gitignore` if not already ignored — it is scratch,
    never committed). The plan covers: files to touch, approach, edge cases,
    test strategy, and which verify-skill surface and flow Phase 4 will walk.
+   It also states whether the change alters anything the verify skill relies
+   on (commands, flags, ports, URLs, output it checks). If so, updating
+   `.claude/skills/verify/` is part of the change: planned, implemented, and
+   reviewed like code.
 
 ## Phase 2 — Build loop (Workflow tool)
 
@@ -160,8 +163,8 @@ the code. Automated tests passing is not evidence.
    fork — put everything it needs in the brief: requirement, plan path, the
    surface and flow to walk, what "correct" looks like). It invokes the
    project `/verify` skill and follows it: that skill owns launch, the
-   walkthrough recipe, evidence capture and storage, and prints the fenced
-   "PR evidence" block plus a proposed verdict.
+   walkthrough recipe, and evidence capture and publishing. The verifier
+   returns the absolute path of `pr-evidence.md` plus a proposed verdict.
 2. The verdict is the main loop's. Spot-check the evidence — open sample
    screenshots, read captured output, read any BLOCKED/skip reason verbatim —
    before recording PASS.
@@ -170,6 +173,10 @@ the code. Automated tests passing is not evidence.
      re-walk the affected flow;
    - anything behavioral or larger → stop, report Step 7 FAILED with the
      findings as follow-up tickets; do not open a PR.
+   - the verify skill itself is stale because of this change (a command,
+     flag, port, URL, or check it relies on changed) → update
+     `.claude/skills/verify/` via the late-fix path, then re-walk. Not
+     BLOCKED, not a waiver.
 4. If the environment cannot support the walk (verify reports BLOCKED: no
    browser, no emulator, missing credentials), STOP and ask the user for a
    waiver — never self-skip. If granted, record WAIVED-BY-USER for Step 7 and
@@ -181,17 +188,24 @@ A change to product source always has one.
 ## Phase 5 — Deliver
 
 - In a background session with worktree isolation, commit/push/draft-PR is
-  automatic — let it happen, then confirm the PR exists.
-- Otherwise: on the Phase 1 branch, commit the change together with any
-  evidence files the `/verify` evidence contract says must be committed,
-  push, and `gh pr create --draft`. Never push to main/master; never
-  force-push.
+  automatic — let it happen, confirm the PR exists, then set its body as
+  below.
+- Otherwise: on the Phase 1 branch, commit the change only — never
+  evidence (`.verify-artifacts/` is gitignored) — push, and open the PR as
+  below. Never push to main/master; never force-push.
 - The PR is NOT complete unless the reviewer can verify it from the PR alone.
-  The body contains:
-  - the Phase 6 gate report;
-  - the captured test/CLI output inline in fenced blocks;
-  - the "PR evidence" block `/verify` printed, verbatim — never edit it.
-    `/verify` decides where evidence files live; do not move them.
+  Build the body mechanically — never retype the evidence block:
+  1. Write `<repoRoot>/.claude/ship/report.md`: the Phase 6 gate report
+     (without the `PR:` line) and the captured test/CLI output in fenced
+     blocks.
+  2. `{ cat <repoRoot>/.claude/ship/report.md; printf '\n\n'; cat
+     <path>/pr-evidence.md; } > <repoRoot>/.claude/ship/body.md`, using the
+     exact path the verifier returned — the blank line keeps an unterminated
+     last line of the report from fusing with the evidence heading.
+  3. `gh pr create --draft --body-file <repoRoot>/.claude/ship/body.md` — or,
+     when the session already opened the PR, `gh pr edit <n> --body-file`
+     the same file.
+  Body files live under `.claude/ship/` (gitignored), never `/tmp`.
 
 ## Phase 6 — Report
 

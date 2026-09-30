@@ -175,7 +175,7 @@ Name the untrusted input and trace it to the sink. No sink, no finding.`,
 		key: "convention",
 		prompt: `Review this diff for violations of THIS PROJECT'S OWN documented rules.
 
-Read the guidance files listed above FIRST. Only flag a rule the file actually
+Read the project guidance files listed below FIRST. Only flag a rule the file actually
 states — quote the exact sentence you are enforcing in your evidence field. Do
 not invent house style, and do not flag general best practices that the project
 never committed to.

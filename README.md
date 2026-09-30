@@ -29,9 +29,43 @@ Coding and testing standards the pipeline enforces:
 
 Discovers how to launch and drive the app (web, mobile, CLI, library/backend),
 asks a few questions (surfaces, launch command, credential env var names,
-evidence storage), writes `.claude/skills/verify/SKILL.md`, and smoke-tests
+evidence storage), writes `.claude/skills/verify/` (`SKILL.md`, the
+`verify-artifacts.mjs` evidence publisher, `evidence.json`), and smoke-tests
 it. Commit `.claude/skills/verify/`. `/eng-gates:ship` refuses to start
 without it.
+
+## Evidence storage
+
+Evidence (screenshots, CLI output, API calls) is never committed. `/verify`
+stages it under `.verify-artifacts/<runId>/` (gitignored), and the publisher
+uploads it and writes the `pr-evidence.md` block that `/ship` appends to the
+PR body.
+
+- **Cloud (recommended).** Set up outside Claude:
+  - a bucket dedicated to evidence;
+  - a lifecycle expiry rule (e.g. 90 days);
+  - public read — run ids are unguessable, so the links are public but not
+    discoverable;
+  - an upload CLI authenticated via its own profile/env. `evidence.json`
+    names the profile and never holds credentials.
+
+  Presets `verify-init` offers (the upload runs without a shell):
+
+  | Backend | Upload argv | Per |
+  |---|---|---|
+  | AWS S3 | `aws s3 cp --recursive {dir} s3://<bucket>/<prefix>/{runId}/` | run |
+  | Cloudflare R2 (aws CLI) | same, plus `--endpoint-url https://<account>.r2.cloudflarestorage.com --profile <name>` | run |
+  | Cloudflare R2 (wrangler) | `wrangler r2 object put <bucket>/<prefix>/{runId}/{key} --file {file} --remote` | file |
+  | GCS | `gcloud storage cp --recursive {dir} gs://<bucket>/<prefix>/{runId}/` | run |
+
+  A private bucket with presigned (short-lived) URLs works if you supply the
+  command; the publisher does not presign.
+- **Local only.** Nothing is uploaded; the PR gets text excerpts.
+
+**Provenance:** links are public, so the generated `/verify` captures only
+against synthetic/seed data, never production or real user data. When it
+cannot tell what data the stack holds, it treats it as real and does not
+publish.
 
 ## Usage
 
@@ -43,7 +77,8 @@ without it.
 `/eng-gates:ship` plans in the main loop, delegates implementation to
 Sonnet, runs the gates below, and ends by opening a **draft** PR on a
 `ship/<slug>` branch whose body carries the gate report, test output, and the
-`/verify` evidence block. Any failed gate → no PR, reported as FAILED.
+`/verify` evidence block (concatenated from `pr-evidence.md`, never
+retyped). Any failed gate → no PR, reported as FAILED.
 
 `/eng-gates:diff-review` runs standalone on any working diff; nothing is
 uploaded.
@@ -70,6 +105,9 @@ code change go through it automatically, adopt
 ## Requirements
 
 - git, and the `gh` CLI authenticated (for the draft PR)
+- Node.js >= 18 (for the evidence publisher)
+- For cloud evidence: the upload CLI you chose (`aws`, `wrangler`, or
+  `gcloud`), authenticated
 - Claude Code with the Workflow tool available
 - Playwright MCP, for web verification
 - Optional: the `feature-dev` plugin (its `code-reviewer` agent backs the
