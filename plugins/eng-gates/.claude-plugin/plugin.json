@@ -1,6 +1,6 @@
 {
   "name": "eng-gates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Gated delivery pipeline for Claude Code: /ship, /diff-review, /verify-init and the test-quality-auditor agent",
   "author": { "name": "ebernie" }
 }

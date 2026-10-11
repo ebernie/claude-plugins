@@ -93,8 +93,8 @@ Any gate failing here fails that gate.
 
 Invoke the Workflow tool with:
 
-- `scriptPath`: the absolute path of `ship-workflow.js` in this skill's
-  directory (expand `~`)
+- `name`: `"eng-gates:ship-build-loop"` (the plugin's bundled workflow; never
+  `scriptPath` — plugin files sit outside the session's readable directories)
 - `args`: `{ "requirement": "...", "planPath": "<absolute path to plan.md>",
   "repoRoot": "<absolute repo root>", "testCommand": "<exact command>",
   "standardsPath": "<absolute path of references/standards.md in this skill's

@@ -96,8 +96,8 @@ was the wrong tier.
 Invoking this skill **is** the opt-in to multi-agent orchestration. Call the
 Workflow tool with:
 
-- `scriptPath`: absolute path of `diff-review-workflow.js` in this skill's
-  directory (expand `~` yourself — the tool will not)
+- `name`: `"eng-gates:diff-review-run"` (the plugin's bundled workflow; never
+  `scriptPath` — plugin files sit outside the session's readable directories)
 - `args`: `{ "range": "<resolved range>", "includeDirty": true|false,
   "effort": "quick|standard|deep", "repoRoot": "<abs path>",
   "guidanceFiles": ["<abs paths of the guidance set>"], "scopeNote": "<one line>" }`

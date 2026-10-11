@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises'
 // gate ordering, loop bounds, and the returned summary. The evaluated source
 // is exclusively the local file under test — no external or user-controlled
 // input is ever interpolated into the function body.
-const SCRIPT_URL = new URL('../ship-workflow.js', import.meta.url)
+const SCRIPT_URL = new URL('../../../workflows/ship-build-loop.js', import.meta.url)
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
 async function loadSource() {
@@ -270,4 +270,9 @@ test('meta declares name, description, and phases matching the phase() calls', a
 test('script avoids APIs banned in the Workflow sandbox', async () => {
   const src = await loadSource()
   assert.doesNotMatch(src, /Date\.now|Math\.random|new Date\(/)
+})
+
+test('SKILL.md invokes the workflow by its plugin name', async () => {
+  const skill = await readFile(new URL('../SKILL.md', import.meta.url), 'utf8')
+  assert.ok(skill.includes('`name`: `"eng-gates:ship-build-loop"`'), 'SKILL.md does not invoke the workflow by name')
 })

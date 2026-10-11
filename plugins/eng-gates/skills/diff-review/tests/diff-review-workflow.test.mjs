@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises'
 // The script runs inside the Workflow harness with agent/pipeline/parallel/log/args
 // as injected globals, so it can't be import()ed. We execute the local source in
 // an AsyncFunction with stubbed globals; nothing external is interpolated into it.
-const SCRIPT_URL = new URL('../diff-review-workflow.js', import.meta.url)
+const SCRIPT_URL = new URL('../../../workflows/diff-review-run.js', import.meta.url)
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
 const pipeline = (items, first, second) => Promise.all(items.map(async item => second(await first(item), item)))
@@ -84,4 +84,15 @@ test('without guidanceFiles no finder prompt advertises guidance files', async (
   for (const opts of finders) {
     assert.ok(!opts.prompt.includes('Project guidance files'), `${opts.label} mentions guidance files`)
   }
+})
+
+test('SKILL.md invokes the workflow by its plugin name, distinct from the skill command', async () => {
+  const src = await readFile(SCRIPT_URL, 'utf8')
+  const metaLiteral = src.match(/export const meta = (\{[\s\S]*?\n\})/)?.[1]
+  assert.ok(metaLiteral, 'meta block not found')
+  const meta = new Function(`return (${metaLiteral})`)()
+  assert.notEqual(meta.name, 'diff-review')
+  assert.deepEqual(meta.phases.map(p => p.title), ['Find', 'Verify'])
+  const skill = await readFile(new URL('../SKILL.md', import.meta.url), 'utf8')
+  assert.ok(skill.includes(`\`name\`: \`"eng-gates:${meta.name}"\``), 'SKILL.md does not invoke the workflow by name')
 })

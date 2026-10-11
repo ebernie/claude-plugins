@@ -83,6 +83,12 @@ retyped). Any failed gate → no PR, reported as FAILED.
 `/eng-gates:diff-review` runs standalone on any working diff; nothing is
 uploaded.
 
+The skills run their orchestration through the plugin's bundled workflows,
+`eng-gates:ship-build-loop` and `eng-gates:diff-review-run`. Claude Code asks
+once before running each one; choose "don't ask again" to skip the prompt in
+later sessions. These workflows also appear as their own commands, but they
+need the arguments the skills build, so always start them through the skills.
+
 ## Gates
 
 Execution order, top to bottom. Step numbers are report labels.

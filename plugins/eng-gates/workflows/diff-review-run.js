@@ -1,5 +1,5 @@
 export const meta = {
-	name: "diff-review",
+	name: "diff-review-run",
 	description:
 		"Local adversarial review of a working diff: parallel dimension finders, refutation verifiers, ranked survivors",
 	whenToUse:
